@@ -1,94 +1,52 @@
-const fs = require("fs").promises;
-const path = require("path");
-const process = require("process");
-const { authenticate } = require("@google-cloud/local-auth");
+const express = require("express");
+const app = express();
+const open = require("open");
+const port = 5000;
+
 const { google } = require("googleapis");
+
 require("dotenv").config();
 
-// If modifying these scopes, delete authToken.json.
-const SCOPES = ["https://www.googleapis.com/auth/calendar"];
-// The file authToken.json stores the user's access and refresh tokens, and is
-// created automatically when the authorization flow completes for the first
-// time.
-const TOKEN_PATH = path.join(process.cwd(), process.env.TOKEN_PATH);
-const CREDENTIALS_PATH = path.join(process.cwd(), process.env.CREDENTIAL_PATH);
+const oauth2Client = new google.auth.OAuth2(
+  process.env.CLIENT_ID,
+  process.env.CLIENT_SECRET,
+  process.env.REDIRECT_URL
+);
 
-/**
- * Reads previously authorized credentials from the save file.
- *
- * @return {Promise<OAuth2Client|null>}
- */
-async function loadSavedCredentialsIfExist() {
-  try {
-    const content = await fs.readFile(TOKEN_PATH);
-    const credentials = JSON.parse(content);
-    return google.auth.fromJSON(credentials);
-  } catch (err) {
-    return null;
+// console.log(oauth2Client);
+const scopes = ["https://www.googleapis.com/auth/calendar"];
+
+// Generate a url that asks permissions for the Drive activity scope
+const authorizationUrl = oauth2Client.generateAuthUrl({
+  access_type: "offline",
+  scope: scopes,
+  include_granted_scopes: true,
+  prompt: "consent",
+});
+open(authorizationUrl);
+
+app.get("/", (req, res) => {
+  res.send("Hello!");
+});
+
+app.get("/callback", (req, res) => {
+  //   set link
+  const { code } = req.query;
+
+  if (code) {
+    oauth2Client.getToken(code, (err, token) => {
+      if (err) {
+        console.log(err);
+        res.send("Error");
+        return;
+      }
+    //   const authToken = oauth2Client.setCredentials(token);
+      console.log(token);
+      res.send(token);
+    });
   }
-}
+});
 
-/**
- * Serializes credentials to a file compatible with GoogleAUth.fromJSON.
- *
- * @param {OAuth2Client} client
- * @return {Promise<void>}
- */
-async function saveCredentials(client) {
-  const content = await fs.readFile(CREDENTIALS_PATH);
-  const keys = JSON.parse(content);
-  const key = keys.installed || keys.web;
-  const payload = JSON.stringify({
-    type: "authorized_user",
-    client_id: key.client_id,
-    client_secret: key.client_secret,
-    refresh_token: client.credentials.refresh_token,
-  });
-  await fs.writeFile(TOKEN_PATH, payload);
-}
-
-/**
- * Load or request or authorization to call APIs.
- *
- */
-async function authorize() {
-  let client = await loadSavedCredentialsIfExist();
-  if (client) {
-    return client;
-  }
-  client = await authenticate({
-    scopes: SCOPES,
-    keyfilePath: CREDENTIALS_PATH,
-  });
-  if (client.credentials) {
-    await saveCredentials(client);
-  }
-  return client;
-}
-
-/**
- * Lists the next 10 events on the user's primary calendar.
- * @param {google.auth.OAuth2} auth An authorized OAuth2 client.
- */
-async function listEvents(auth) {
-  const calendar = google.calendar({ version: "v3", auth });
-  const res = await calendar.events.list({
-    calendarId: "primary",
-    timeMin: new Date().toISOString(),
-    maxResults: 10,
-    singleEvents: true,
-    orderBy: "startTime",
-  });
-  const events = res.data.items;
-  if (!events || events.length === 0) {
-    console.log("No upcoming events found.");
-    return;
-  }
-  console.log("Upcoming 10 events:");
-  events.map((event, i) => {
-    const start = event.start.dateTime || event.start.date;
-    console.log(`${start} - ${event.summary}`);
-  });
-}
-
-authorize().then(listEvents).catch(console.error);
+app.listen(port, () => {
+  console.log(`Example app listening on port ${port}`);
+});
