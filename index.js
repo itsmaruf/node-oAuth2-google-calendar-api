@@ -3,14 +3,15 @@ const path = require("path");
 const process = require("process");
 const { authenticate } = require("@google-cloud/local-auth");
 const { google } = require("googleapis");
+require("dotenv").config();
 
-// If modifying these scopes, delete token.json.
+// If modifying these scopes, delete authToken.json.
 const SCOPES = ["https://www.googleapis.com/auth/calendar"];
-// The file token.json stores the user's access and refresh tokens, and is
+// The file authToken.json stores the user's access and refresh tokens, and is
 // created automatically when the authorization flow completes for the first
 // time.
-const TOKEN_PATH = path.join(process.cwd(), "token.json");
-const CREDENTIALS_PATH = path.join(process.cwd(), "credentials.json");
+const TOKEN_PATH = path.join(process.cwd(), process.env.TOKEN_PATH);
+const CREDENTIALS_PATH = path.join(process.cwd(), process.env.CREDENTIAL_PATH);
 
 /**
  * Reads previously authorized credentials from the save file.
